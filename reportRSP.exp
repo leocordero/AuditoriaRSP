@@ -1,0 +1,134 @@
+#!/usr/bin/expect
+
+#set env(PATH) "/opt/CSCOossh/bin:/opt/CSCOossh/man:/usr/bin:/usr/sbin:/usr/openwin/bin:/usr/local/bin:/usr/cisco/bin/:" 
+set env(SHELL) "/bin/bash" 
+set env(TERM) "xterm"
+#exp_internal -f /auto/wwwPeople/ariopaal/scripts/test.txt 0
+
+
+
+############################################################
+# Function that telnets a router and executes the commands #
+############################################################
+
+proc getCOM {device routeruser routerpwd date} {
+    set timeout 20
+    set flag 1
+    set mylog ""
+    #sleep 1
+    #send "telnet $device\r"
+    spawn telnet $device
+    expect {
+        timeout {
+            set timeout -1
+            send \003
+            send_log "$device timedout\n"
+        }
+	"X#" {
+            set timeout -1
+            send \003
+            send_log "$device Conexion rechazada\n"
+            puts "Conexion rechazada $device $expect_out(buffer)"
+        }
+        "Unknown host" {
+            set timeout -1
+	    send_log "$device Unknown host\n"
+
+        }
+        "Xclosed by foreign host" {
+            set timeout -1
+	    send_log "$device closed the session\n"
+        }
+        "Username: " {
+	    send $routeruser
+            send "\r"
+            set timeout -1
+            expect "assword: " {
+		send $routerpwd
+                send "\r"
+		expect {
+			"#" {
+				log_user 0
+				#puts "1"
+				send "show mod | i 720\r"
+				expect "#"
+				
+				send_log "$device ,$expect_out(buffer)\n\n\n"
+				#expect "#"
+				send "exit\r"
+			    }
+			">" {
+				log_user 0
+				#puts "1"
+				send "show mod | i 720\r"
+				expect "#"
+				
+				send_log "$device ,$expect_out(buffer)\n\n\n"
+				#expect "#"
+				send "exit\r"
+			    }
+			}
+			}
+		}
+	}
+}
+##########
+##########
+## Main ##
+##########
+##########
+
+puts "Inicio .exp\n"
+
+#################################################################################################
+# Reviews if the arguments sent when calling this function are the number of arguments required #
+#################################################################################################
+if { $argc != 10 } {
+    puts "Syntax: getCOM.exp \[\-r\|\-s\] device_list output_file command_list serveruser serverpwd routeruser routerpwd enablepwd\r"
+    send_log "Parametros No OK\n"
+    puts "    -r: if device_list is a list of routers\r"
+    puts "    -s: if device_list is a list of switches\r"
+    puts "\r"
+    exit 1
+}
+send_log "Parametros OK\n"
+puts "Parametros Ok\n"
+
+#############
+# Variables #
+#############
+set timeout 10
+log_user 0
+set routersFile [lindex $argv 0]
+set outputCommandsDirectory [lindex $argv 1] 
+set commandsFile [lindex $argv 2]
+#set firstServerUser [lindex $argv 3] 
+#set firtsServerPassword [lindex $argv 4] 
+set secondServerUser [lindex $argv 3] 
+set secondServerPassword [lindex $argv 4] 
+set thirdServerUser [lindex $argv 5] 
+set thirdServerPassword [lindex $argv 6]
+set routerUser [lindex $argv 7]
+set routerPassword [lindex $argv 8]
+set date [lindex $argv 9]
+set openedRoutersfile [open $routersFile r]
+
+expect "# "
+
+puts "Conectado a CPN"
+######################
+# Connect to Routers #
+######################
+log_file -noappend ./logs/reportRSP.txt
+while { [gets $openedRoutersfile device] != -1} {
+	#set records [split $device ","]
+	#lassign $records ip tipo
+	puts "Conectado a equipo: $device"
+	getCOM $device $routerUser $routerPassword $date 
+	expect "%"
+}
+close $openedRoutersfile
+###############
+# End Program #
+###############
+send "exit\r"
